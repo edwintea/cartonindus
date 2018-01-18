@@ -18,13 +18,17 @@ class AutoPostOrder{
         $this->config = new Config();       
         
     }
-
+    
+    public function convertDateToEng($date){
+        $s = explode("-",$date);			
+		
+        return $s[1]."/".$s[2]."/".$s[0];
+    }
+    
     public function go(){
                                         
-        $orders = new OrderModel();
-        $count=count($orders->getAll());
-        $arr=[];
-        
+        $orders = new OrderModel();        
+						        
         //start api
         $key="UGx8Q6FqRmpg9nmug0vEem21P9Tc3Wf1rjvOw3YOGm0uGdua7QAB93lAC98HXEA5";
         
@@ -33,63 +37,93 @@ class AutoPostOrder{
         
         $file_contents = file_get_contents($get);
         $json_decode = json_decode($file_contents);                
+        $arr      =   $json_decode->data;
         
-        echo var_dump($json_decode->data[0]); //get result
+        //echo var_dump($arr); //get result
         
-        if(count($json_decode->data[0]) > 0){
+        echo"\nFound : ".count($arr)." Record dari portal\n";              
+        		
+        if(count($arr) > 0){
             
-            foreach($json_decode->data[0] as $k => $d){
+            for($i=0;$i < count($arr);$i++){
                 
-                if($k=='nospk'){
+                $sql="SELECT * FROM spk WHERE (LTRIM(RTRIM(webid))= '".$arr[$i]->id."') "; 
+				$no=count($orders->getAll())+1;
+				
+				$no="SPS-WEB-".$no;					
+				                                
+                $find=DB::fetch($sql);  				
+								
+				
+                if(count($find) == 0){
+										
+					
+                    DB::insert('spk', array(
+                            'nospk'			=>	$no,
+                            'unit'			=>      "PCS",
+                            'jenis'                 =>	$arr[$i]->jenis,
+                            'webid'                 =>	$arr[$i]->id,
+                            'transdate'             =>      DEFAULT_CONNECT_DB=='mysql'?$arr[$i]->transdateorder:$this->convertDateToEng($arr[$i]->transdateorder),
+                            'transdateproduksi'     =>      DEFAULT_CONNECT_DB=='mysql'?$arr[$i]->transdatekirim:$this->convertDateToEng($arr[$i]->transdatekirim),
+                            'transdateorder'        =>      DEFAULT_CONNECT_DB=='mysql'?$arr[$i]->transdateorder:$this->convertDateToEng($arr[$i]->transdateorder),
+                            'lebar'                 =>	$arr[$i]->lebar,
+                            'qty'			=>	$arr[$i]->qty,
+                            'itemprice'             =>	$arr[$i]->itemprice,
+                            'spkstatus'             =>	$arr[$i]->spkstatus,
+                            'deskripsi'		=>	$arr[$i]->deskripsispk,
+                            'kwalitascetak'		=>	$arr[$i]->kwalitascetak
+                    ));     
                     
-                    $arr['nospk']="ok";
-                    
-                }else{
-                    
-                    $arr[$k]=$d;
+                    echo "Posting 1 order from portal to Desktop [OK] \n";
                     
                 }
                 
             }
             
         }                
-        
-        
-        $data = array(
-            "appkey"    => $key,
-            "id"        =>  $json_decode->data[0]->id,
-            "data"      =>  $arr
-        );
                 
-            
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $post);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['edwin'=>1]));
-        $result = curl_exec($ch);
-        echo $result;die;
-        curl_close($ch);
-            
-                                
-        if($count){
-            
-            echo "Found ".$count." New Order \n";
-            
-        }else{
-            
-            echo "Empty New Order \n";
-        }
+        //END PULL
+		
+		
+		
+        //push data to web
+        $sql="SELECT * FROM spk WHERE (webid IS NOT NULL) ";                                
+        $find=DB::fetch($sql);                
         
+        if(count($find) > 0){
+            
+            for($i=0;$i < count($find);$i++){
+                                        
+                //echo var_dump($find[$i]);die;
+                
+                $data = array(
+                    "appkey"    => $key,            
+                    "data"      =>  $find[$i]
+                );                
+
+                $data_string = json_encode($data);                                                                                   
+
+                $ch = curl_init($post);                                                                      
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $data_string);                                                                  
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);                                                                      
+                curl_setopt($ch, CURLOPT_HTTPHEADER, array(                                                                          
+                    'Content-Type: application/json',                                                                                
+                    'Content-Length: ' . strlen($data_string))                                                                       
+                );                                                                                                                   
+
+                $result = curl_exec($ch);        
+                
+                echo "Updating 1 order from desktop to Portal [OK] \n";
+
+            }        
+            
+        }        
+		
         
-        DB::insert('spk', array(
-            'nospk'            =>  count($orders->getAll())+1,
-            'transdate'         =>  date('Y-m-d'),
-            'transdateproduksi' =>  date('Y-m-d H:i:s'),
-            'transdateorder'    =>  date('Y-m-d H:i:s')
-        ));
+        //end push
         
-        echo " Post OK \n";
+        echo "Connection closed \n";        
         
     }
     

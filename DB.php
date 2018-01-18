@@ -1,7 +1,7 @@
 <?php
 
  
-define('DEFAULT_CONNECT_DB','mysql');
+define('DEFAULT_CONNECT_DB','odbc');
 
 if(DEFAULT_CONNECT_DB=="postgres"){
     
@@ -20,8 +20,18 @@ if(DEFAULT_CONNECT_DB=="postgres"){
     define('DB_NAME','cartonindus');
     define('DB_USER','root');
     define('DB_PWD','');
+	
+}else if(DEFAULT_CONNECT_DB=="odbc"){
     
+    define('DB_DRIVER','odbc');
+    define('DB_PORT','3306');
+    define('DB_HOST','127.0.0.1');
+    define('DB_NAME','itrackCartonindus');
+    define('DB_USER','isp1');
+    define('DB_PWD','');
 }
+
+
 
 class DB{        
     
@@ -63,7 +73,14 @@ class DB{
                 echo "Failed to connect to Postgres " ; 
                 
             }
-            
+         
+		}else if(DB_DRIVER =='odbc'){
+			
+				$user="";
+				$pwd="";
+				
+				$conn = odbc_connect("orderWebPortal", $user, $pwd);
+				
         }
         
         
@@ -81,7 +98,7 @@ class DB{
                 mysqli_select_db(self::config(),DB_NAME);
                 mysqli_close(self::config());
                 
-            }else if(DB_DRIVER =='mysql'){
+            }else if(DB_DRIVER =='pgsql'){
                 
                 pg_select_db(self::config(),DB_NAME);
                 pg_close(self::config());
@@ -108,6 +125,9 @@ class DB{
                 return mysqli_query(self::config(),$sql);
                 
             break;
+            case"odbc":
+                    return odbc_exec(self::config(),$sql);
+            break;
             default :
                 
             break;
@@ -125,7 +145,7 @@ class DB{
     public static function fetch($sql){
                         
         $rows = self::setQuery($sql);
-        
+			
         $result=array();
         
         if(DB_DRIVER=="mysql"){
@@ -135,43 +155,69 @@ class DB{
                 array_push($result, $data);
 
             }
-        
-        }else if(DB_DRIVER=="mysql"){
-            
-            
+		}else if(DB_DRIVER=="odbc"){
+								
+			
+			while($data = odbc_fetch_array($rows)){
+			
+				array_push($result, $data);
+
+			}
+			
+								
+        }else{
+                       
             echo "ERROR ON DB.PHP LINE 125";
-            die;
-        }
             
-        
-        
-                
+        }
+                           	   
+	   
         return $result;
                 
     }
             
     public static function  insert($table="",$data=array()){
                         
-        $sql = "INSERT INTO ".$table." SET ";
+        $sql = "INSERT INTO ".$table." (";
                 
         if(is_array($data)){
             
+			$j=1;
+			foreach($data as $k=>$v){
+				
+				if($j!=count($data)){
+					$sql.=$k.",";
+				}else{
+					$sql.=$k;
+				}
+					
+				$j++;
+			}			
+			
+			
+			$sql.=") VALUES (";
+			
             $n=1;
             foreach($data as $k=>$v){
                
                 if($n!=count($data)){
-                    $sql .=$k."='".$v."',";  
+					if($k=='itemprice'){
+						$sql .="".$v.",";  
+					}else{
+						$sql .="'".$v."',";  
+					}
+                    
                 }else{
-                    $sql .=$k."='".$v."'";  
+                    $sql .="'".$v."'";  
                 }
                             
               $n++;
             }
+			
+			$sql.=")";
         }    
         
-        //echo $sql;die;
-        
-                        
+                    
         self::setQuery($sql);        
         
     }

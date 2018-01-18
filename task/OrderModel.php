@@ -4,7 +4,7 @@ class OrderModel extends DB{
             
     public function getAll(){
         
-        $sql=" SELECT * FROM spk ";
+        $sql=" SELECT * FROM spk WHERE (webid is not null)";
                         
         return DB::fetch($sql);
     }
